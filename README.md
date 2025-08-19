@@ -24,7 +24,7 @@ It syncs vibrations with the trailer video, letting you **feel the trailer** thr
 
 
 ## ⚖️ License & Disclaimer
-This project is licensed under the **MIT License**.  
+This project is licensed under the **[MIT License](LICENSE)**.  
 
 This project is a **non-commercial, educational recreation** of the Formula 1 haptic trailer designed for Apple devices.  
 No copyright infringement is intended. This project is **not affiliated with, endorsed by, or connected to Apple Inc., Formula 1, or any of their subsidiaries or partners**.
