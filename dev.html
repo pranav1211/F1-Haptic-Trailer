@@ -1,0 +1,205 @@
+<html>
+
+<head>
+    <style>
+        body {
+            font-family: sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin: 20px;
+        }
+
+        video {
+            width: 100%;
+            max-width: 1500px;
+            margin-top: 10px;
+        }
+
+        .controls {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 10px;
+            width: 100%;
+            max-width: 1500px;
+        }
+
+        button {
+            font-size: 32px;
+            padding: 12px 20px;
+            flex: 1;
+        }
+
+        .seekbar {
+            width: 100%;
+            max-width: 1500px;
+            margin-top: 10px;
+        }
+
+        input[type="range"] {
+            width: 100%;
+        }
+
+        .jump-controls {
+            display: flex;
+            gap: 10px;
+            margin-top: 15px;
+            width: 100%;
+            max-width: 1500px;
+        }
+
+        .jump-controls input {
+            font-size: 24px;
+            padding: 8px;
+            flex: 1;
+        }
+
+        .jump-controls button {
+            flex: none;
+            font-size: 24px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="controls"> <button id="playPauseBtn">Play</button> <button id="restartBtn">Restart</button> </div>
+    <video id="video" src="haptic.mp4"></video> <!-- Seek bar -->
+    <div class="seekbar">
+        <input type="range" id="seekBar" value="0" min="0" step="0.1">
+    </div> <!-- Jump to time -->
+    <div class="jump-controls">
+        <input type="number" id="jumpInput" placeholder="Enter seconds" step="0.1" min="0" value="104">
+        <button id="jumpBtn">Jump</button>
+    </div>
+
+    <script>const video = document.getElementById("video");
+        const playPauseBtn = document.getElementById("playPauseBtn");
+        const restartBtn = document.getElementById("restartBtn");
+        const seekBar = document.getElementById("seekBar");
+        const jumpInput = document.getElementById("jumpInput");
+        const jumpBtn = document.getElementById("jumpBtn");
+
+        // Define vibration events (time in seconds, duration or pattern in ms)
+        const vibrationEvents = [
+            { time: 6.8, duration: 100 },   // SEATBELT
+            { time: 8.0, duration: 100 },   // wheel
+            { time: 12.8, duration: 1900 }, // startup
+            { time: 16.7, duration: 100 },  // clutch
+            { time: 17.9, duration: 100 },  // gear
+            { time: 18.7, duration: 1300 }, // rollout
+            { time: 21.9, duration: 3700 }, // tv cam
+            { time: 34.6, pattern: [200, 200, 200, 200, 200, 200, 200, 300, 200, 100, 200] }, // pitstop
+            { time: 48.1, pattern: [100, 100, 200] },
+            { time: 75.3, pattern: [100, 100, 2200] }, // chase
+            { time: 81.3, pattern: [300, 200, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100] }, // crash & gravel
+            { time: 89.0, pattern: [100, 100, 100] }, // jump crash
+            { time: 91.8, duration: 500 }, // vegas
+            { time: 96.5, duration: 2700 }, // monza
+            { time: 105.2, pattern: [2900, 50, 2350] }, // finale part 1
+            { time: 110.7, pattern: [100, 300, 100, 100, 100, 50, 5450] }, // finale part 2
+            { time: 117.0, pattern: [100, 300, 100, 0, 3600] } // backfire
+        ];
+
+        let triggered = new Set();
+        let rafId = null;
+
+        // Mark all past events as triggered
+        function markPastEvents(currentTime) {
+            triggered.clear();
+            vibrationEvents.forEach((event, index) => {
+                if (event.time < currentTime) {
+                    triggered.add(index); // skip past events
+                }
+            });
+        }
+
+        // Play / Pause toggle
+        playPauseBtn.addEventListener("click", () => {
+            if (video.paused) {
+                playPauseBtn.textContent = "Pause";
+                video.play();
+            } else {
+                playPauseBtn.textContent = "Play";
+                video.pause();
+            }
+        });
+
+        // Restart video
+        restartBtn.addEventListener("click", () => {
+            video.currentTime = 0;
+            triggered.clear();
+            video.play();
+            playPauseBtn.textContent = "Pause";
+        });
+
+        // Sync seek bar with video progress
+        video.addEventListener("timeupdate", () => {
+            seekBar.value = video.currentTime;
+        });
+
+        // Set seek bar max once video metadata is loaded
+        video.addEventListener("loadedmetadata", () => {
+            seekBar.max = video.duration;
+        });
+
+        // Handle manual seeking
+        seekBar.addEventListener("input", () => {
+            video.currentTime = seekBar.value;
+            markPastEvents(video.currentTime);
+        });
+
+        // Handle jump to exact time
+        jumpBtn.addEventListener("click", () => {
+            const time = parseFloat(jumpInput.value);
+            if (!isNaN(time) && time >= 0 && time <= video.duration) {
+                video.currentTime = time;
+                markPastEvents(time);
+            }
+        });
+
+        // Keep button text in sync with video state
+        video.addEventListener("play", () => {
+            playPauseBtn.textContent = "Pause";
+            if (video.currentTime === 0) {
+                triggered.clear(); // fresh start
+            } else {
+                markPastEvents(video.currentTime); // resume from seek
+            }
+            startChecking();
+        });
+
+        video.addEventListener("pause", () => {
+            playPauseBtn.textContent = "Play";
+            cancelAnimationFrame(rafId);
+        });
+
+        video.addEventListener("seeked", () => {
+            markPastEvents(video.currentTime);
+        });
+
+        // Use RAF to check vibrations with high precision
+        function checkVibrations() {
+            const currentTime = video.currentTime;
+
+            vibrationEvents.forEach((event, index) => {
+                if (currentTime >= event.time && !triggered.has(index)) {
+                    if (event.pattern) {
+                        navigator.vibrate(event.pattern);
+                    } else {
+                        navigator.vibrate(event.duration);
+                    }
+                    triggered.add(index);
+                }
+            });
+
+            rafId = requestAnimationFrame(checkVibrations);
+        }
+
+        function startChecking() {
+            cancelAnimationFrame(rafId);
+            rafId = requestAnimationFrame(checkVibrations);
+        }
+    </script>
+</body>
+
+</html>
