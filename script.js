@@ -8,12 +8,32 @@
   if (!overlay) return;
 
   const lights = overlay.querySelectorAll('.switch');
-  const STEP = 700;   // gap between each light coming on
-  const HOLD = 1000;  // pause after the last light before lights-out
-  const FADE = 600;   // overlay fade duration (matches CSS transition)
+  const audioEl = document.getElementById('startAudio');
+
+  // When each light illuminates (ms from sequence start). These match
+  // the beep onsets in starting-lights.mp3: ~0.5s lead, then 1s apart.
+  // (If the cut differs, re-tune these to the file's real onsets.)
+  const LIGHT_TIMES = [500, 1500, 2500, 3500, 4500];
+  const LIGHTS_OUT = 5400;  // all lights cut to black ("lights out")
+  const HOLD_CAPTION = 2000; // dwell on the caption before revealing
+  const FADE = 600;          // overlay fade (matches CSS transition)
 
   // keep the page from scrolling while the sequence plays
   document.body.style.overflow = 'hidden';
+
+  // ----------------------------------------------------------
+  // Race-start audio plays from the mp3, in lockstep with the
+  // lights. Browser autoplay rules mean sound can only start
+  // after a user gesture — if the intro runs before any
+  // interaction it stays silent (lights still play), and it
+  // syncs on reloads once audio is unlocked for the session.
+  // ----------------------------------------------------------
+  function playAudio() {
+    if (!audioEl) return;
+    try { audioEl.currentTime = 0; } catch (e) { /* not seekable yet */ }
+    const p = audioEl.play();
+    if (p && p.catch) p.catch(() => { /* autoplay blocked — silent */ });
+  }
 
   function reveal() {
     overlay.classList.add('done');
@@ -24,20 +44,21 @@
   }
 
   function runSequence() {
-    lights.forEach((light, i) => {
-      setTimeout(() => light.classList.add('lit'), STEP * (i + 1));
-    });
+    // start the sound and the lights at the same instant
+    playAudio();
 
-    const lightsOutAt = STEP * lights.length + HOLD;
+    LIGHT_TIMES.forEach((t, i) => {
+      setTimeout(() => { if (lights[i]) lights[i].classList.add('lit'); }, t);
+    });
 
     // lights out: all go dark at once, caption flashes
     setTimeout(() => {
       lights.forEach((light) => light.classList.remove('lit'));
       overlay.classList.add('out');
-    }, lightsOutAt);
+    }, LIGHTS_OUT);
 
-    // hold on the caption for 3s so the user can read it, then reveal
-    setTimeout(reveal, lightsOutAt + 2000);
+    // hold on the caption so the user can read it, then reveal
+    setTimeout(reveal, LIGHTS_OUT + HOLD_CAPTION);
   }
 
   if (document.readyState === 'loading') {
